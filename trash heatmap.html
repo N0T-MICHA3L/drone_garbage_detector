@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trash Heatmap</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css" />
+</head>
+
+<body>
+    <div class="container">
+        <h1>Trash Heatmap</h1>
+        <div id="map" style="height: 400px; margin-bottom: 20px;"></div>
+        <table id="trackTable" class="display">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Time</th>
+                    <th>Flytime</th>
+                    <th>Trash</th>
+                    <th>Latitude</th>
+                    <th>Longitude</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Track data will be inserted here -->
+            </tbody>
+        </table>
+    </div>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <!-- DataTables JS -->
+    <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+
+    <!-- Leaflet Heatmap -->
+    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
+
+
+    <script>
+        // Initialize the map
+        const map = L.map('map').setView([40.7128, -74.0060], 10);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        $(document).ready(function () {
+            fetch('tracks.csv')
+                .then(response => response.text())
+                .then(data => {
+                    const rows = data.split('\n').slice(1).filter(row => row.trim() !== '');
+                    const tableData = rows.map(row => row.split(',').slice(0, 6));
+
+                    // Prepare heatmap data
+                    const heatmapPoints = [];
+                    tableData.forEach(cols => {
+                        const lat = parseFloat(cols[4]);
+                        const lng = parseFloat(cols[5]);
+                        const trash = parseFloat(cols[3]);
+                        if (!isNaN(lat) && !isNaN(lng) && trash > 0) {
+                            heatmapPoints.push([lat, lng, trash]);
+                        }
+                    });
+
+                    if (heatmapPoints.length > 0) {
+                        const heat = L.heatLayer(heatmapPoints, {
+                            radius: 25,
+                            blur: 15,
+                            maxZoom: 17,
+                        }).addTo(map);
+                        map.fitBounds(heatmapPoints.map(p => [p[0], p[1]]));
+                    }
+
+                    // Draw polyline for track
+                    const latlngs = tableData.map(cols => [parseFloat(cols[4]), parseFloat(cols[5])])
+                        .filter(([lat, lng]) => !isNaN(lat) && !isNaN(lng));
+                    if (latlngs.length > 0) {
+                        L.polyline(latlngs, { color: 'blue' }).addTo(map);
+                        L.marker(latlngs[0]).addTo(map).bindPopup('Start');
+                        L.marker(latlngs[latlngs.length - 1]).addTo(map).bindPopup('End');
+                    }
+
+                    // DataTable
+                    $('#trackTable').DataTable({
+                        data: tableData,
+                        columns: [
+                            { title: "Date" },
+                            { title: "Time" },
+                            { title: "Flytime" },
+                            { title: "Trash" },
+                            { title: "Latitude" },
+                            { title: "Longitude" }
+                        ],
+                        pageLength: 10
+                    });
+                });
+        });
+    </script>
+</body>
+
+</html>
